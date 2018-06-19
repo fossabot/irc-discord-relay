@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/thoj/go-ircevent"
@@ -11,7 +12,7 @@ import (
 
 func StartIRC() error {
 	iConn := irc.IRC(*Config.Irc.Nick, *Config.Irc.Nick)
-	iConn.VerboseCallbackHandler = false // DEV, use true for DEV
+	iConn.VerboseCallbackHandler = true // DEV, use true for DEV
 	iConn.UseTLS = true
 	iConn.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 
@@ -118,12 +119,30 @@ func messageWithMention(msg string) string {
 	return msg
 }
 
+func removeAddFormatting(msg string) string {
+	re := regexp.MustCompile(`\x03(\d\d?(,\d\d?)?)?`) // // https://stackoverflow.com/a/10567935/6754440
+	fmt.Println(re.FindAllString(msg, -1))
+	msg = re.ReplaceAllString(msg, "")
+
+	if strings.Count(msg, `\x02`)%2 == 0 {
+		strings.Replace(msg, `\x02`, "**", -1)
+	} else {
+		strings.Replace(msg, `\x02`, "**", -1)
+		msg += "**"
+	}
+	// TODO replace other formating which can be converted like bold, cursiv etc: [\x02\x1F\x0F\x16], https://github.com/myano/jenni/wiki/IRC-String-Formatting
+
+	return msg
+}
+
 // PRIVMSG callback
 // https://tools.ietf.org/html/rfc1459#section-4.4.1
 func onIrcPrivmsg(e *irc.Event) {
 	if !Relay.isReady() || e.Nick == *Config.Irc.Nick {
 		return
 	}
+
+	//msg := removeAddFormatting(e.Message())
 	SendDiscord("**<" + e.Nick + ">** " + messageWithMention(e.Message()))
 }
 
